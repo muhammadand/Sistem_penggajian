@@ -1,0 +1,111 @@
+/* Mengatur font dasar dan box model untuk semua elemen */
+* {
+    font-family: "Poppins", sans-serif;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+/* Mengatur gaya untuk ikon navigasi */
+.icon-nav {
+    position: relative;
+    color: #ffffff8c;
+}
+
+.icon-nav:hover {
+    color: white;
+}
+
+/* Mengatur gaya untuk elemen lingkaran kecil */
+.circle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: orange;
+    color: white;
+    text-align: center;
+    font-size: 12px;
+    top: 10px;
+    right: 66px;
+}
+
+/* Mengatur gaya dasar untuk setiap bagian (section) */
+section {
+    min-height: 100vh;
+}
+
+/* Mengatur gaya untuk footer */
+footer {
+    background-color: #a67b5b;
+    color: white;
+    padding: 0px; /* Tambahkan padding atas dan bawah untuk ruang di sekitar konten */
+    margin: auto;
+}
+
+footer .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0px; /* Padding kiri dan kanan untuk responsivitas */
+}
+
+footer .d-flex {
+    display: flex;
+    justify-content: space-between; /* Membuat konten diatur dengan jarak antara mereka */
+    align-items: flex-start; /* Mengatur elemen agar berada di awal secara vertikal */
+    gap: 20px; /* Jarak antara elemen */
+}
+
+footer .title-left,
+footer .title-middle,
+footer .title-sosmed {
+    flex: 1; /* Pastikan semua kolom memiliki ukuran fleksibel */
+    min-width: 200px; /* Lebar minimum untuk setiap kolom */
+}
+
+footer .title-sosmed {
+    margin-left: auto; /* Menggeser bagian sosial media ke kanan */
+}
+
+footer .header-title {
+    font-size: 1.25rem; /* Ukuran font header */
+    margin-bottom: 10px; /* Margin bawah untuk ruang */
+    font-weight: bold; /* Berat font untuk header */
+}
+
+footer .sosmed i {
+    margin-right: 10px; /* Jarak antara ikon sosial media */
+    font-size: 1.5rem; /* Ukuran font ikon sosial media */
+    color: white; /* Warna ikon sosial media */
+}
+
+footer .text-center {
+    text-align: center; /* Teks berada di tengah */
+    margin-top: 20px; /* Margin atas untuk ruang */
+    font-size: 0.875rem; /* Ukuran font untuk teks hak cipta */
+}
+
+/* Hilangkan garis bawah biru pada elemen link */
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Responsif untuk layar kecil */
+@media (max-width: 768px) {
+    footer .d-flex {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    footer .title-left,
+    footer .title-middle,
+    footer .title-sosmed {
+        text-align: center;
+        width: 100%;
+    }
+
+    footer .title-sosmed {
+        margin-left: 0; /* Hapus margin-left pada layar kecil */
+    }
+}

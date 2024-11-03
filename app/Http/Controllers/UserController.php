@@ -22,18 +22,25 @@ class UserController extends Controller
             'username' => 'required|unique:tb_user',
             'password' => 'required',
             'password_confirm' => 'required|same:password',
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // Validation for image
         ]);
-
+    
+        // Handle image upload, storing it in the public directory
+        $imageName = time().'.'.$request->image->extension();
+        $request->image->move(public_path('images'), $imageName); // Save to public/images
+    
+        // Create a new user with image path
         $user = new User([
             'name' => $request->name,
             'username' => $request->username,
             'password' => Hash::make($request->password),
+            'image' => 'images/'.$imageName, // Save image path to the database
         ]);
         $user->save();
-
-        return redirect()->route('login')->with('success', 'Registration success. Please login!');
+    
+        return redirect()->route('login')->with('success', 'Registration successful. Please login!');
     }
-
+    
 
     public function login()
     {
@@ -49,7 +56,7 @@ class UserController extends Controller
         ]);
         if (Auth::attempt(['username' => $request->username, 'password' => $request->password])) {
             $request->session()->regenerate();
-            return redirect()->intended('/');
+            return redirect()->intended('/admin');
         }
 
         return back()->withErrors([
