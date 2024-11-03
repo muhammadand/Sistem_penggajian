@@ -5,18 +5,36 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Models\Keranjang;
 use App\Models\Produk;
+use App\Traits\NotifikasiTrait;
 
 class KeranjangController extends Controller
 {
+    use NotifikasiTrait; 
     // Menampilkan keranjang belanja
     public function index()
-    {
+    { $produk = Produk::with('rop')->get();
+        $notifications = $this->generateNotifications($produk);
         $keranjang = Keranjang::with('produk')->get(); // Ambil semua data keranjang
         $total_harga = $keranjang->sum(function ($item) {
             return $item->produk->harga_jual * $item->jumlah;
         });
 
-        return view('keranjang.index', compact('keranjang', 'total_harga'));
+        return view('keranjang.index', compact('keranjang', 'total_harga', 'notifications'));
+    }
+    public function cari(Request $request)
+    {
+        $produks = Produk::with('rop')->get();
+        $notifications = $this->generateNotifications($produks);
+        $keyword = $request->input('keyword');
+        $produk = Produk::where('nama_obat', 'LIKE', "%$keyword%")->get();
+        
+        // Ambil data keranjang
+        $keranjang = Keranjang::with('produk')->get();
+        $total_harga = $keranjang->sum(function ($item) {
+            return $item->jumlah * $item->produk->harga_jual;
+        });
+
+        return view('keranjang.index', compact('keranjang', 'total_harga', 'produk', 'keyword', 'notifications'));
     }
 
     // Menambahkan produk ke keranjang
@@ -65,19 +83,7 @@ class KeranjangController extends Controller
         return redirect()->route('keranjang.index')->with('success', 'Produk berhasil dihapus dari keranjang.');
     }
 
-    public function cari(Request $request)
-    {
-        $keyword = $request->input('keyword');
-        $produk = Produk::where('nama_obat', 'LIKE', "%$keyword%")->get();
-        
-        // Ambil data keranjang
-        $keranjang = Keranjang::with('produk')->get();
-        $total_harga = $keranjang->sum(function ($item) {
-            return $item->jumlah * $item->produk->harga_jual;
-        });
-
-        return view('keranjang.index', compact('keranjang', 'total_harga', 'produk', 'keyword'));
-    }
+   
 
     public function tambahProduk(Request $request)
     {

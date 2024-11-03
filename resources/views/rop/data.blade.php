@@ -36,9 +36,8 @@
                     <th>Nama Obat</th>
                     <th>Tahun</th>
                     <th>Total Jumlah</th>
-                    <th>Rata-rata Penjualan Bulanan</th> <!-- Kolom baru untuk rata-rata bulanan -->
+                    <th>Rata-rata Penjualan Harian</th> <!-- Kolom baru untuk rata-rata bulanan -->
                     <th>Safety Stock</th> <!-- Kolom baru untuk safety stock -->
-                    <th>Permintaan Harian</th> <!-- Kolom baru untuk permintaan harian -->
                     <th>ROP</th> <!-- Kolom baru untuk ROP -->
                 </tr>
             </thead>
@@ -49,9 +48,8 @@
                         <td>{{ $item->nama_obat }}</td>
                         <td>{{ $item->tahun }}</td>
                         <td>{{ $item->total_jumlah }}</td>
-                        <td>{{ number_format($item->rata_rata_bulanan, 2) }}</td> <!-- Menampilkan rata-rata bulanan -->
+                        <td>{{ number_format($item->rata_rata_harian, 2) }}</td> <!-- Menampilkan rata-rata bulanan -->
                         <td>{{ number_format($item->safety_stock, 2) }}</td> <!-- Menampilkan safety stock -->
-                        <td>{{ number_format($item->permintaan_harian, 2) }}</td> <!-- Menampilkan permintaan harian -->
                         <td>{{ number_format($item->rop, 2) }}</td> <!-- Menampilkan ROP -->
                     </tr>
                 @empty

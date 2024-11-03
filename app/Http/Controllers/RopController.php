@@ -5,9 +5,11 @@ use Illuminate\Http\Request;
 use App\Models\Rop; // Pastikan Anda mengimpor model ROP
 use App\Models\Produk; // Mengimpor model Produk
 use App\Models\TransaksiPenjualan;
-
+use App\Traits\NotifikasiTrait;
+use Carbon\Carbon;
 class RopController extends Controller
 {
+    use NotifikasiTrait; // Menyertakan Trait Notifikasi
     public function create()
     {
         // Mengambil semua produk untuk ditampilkan di form
@@ -63,11 +65,72 @@ class RopController extends Controller
     }
     
 
-    // Menampilkan halaman index untuk ROP
-    public function index()
+    public function index(Request $request)
     {
-        $rops = Rop::with('produk')->get(); // Mengambil semua data ROP dari database beserta relasinya
-        return view('rop.index', compact('rops'));
+        // Inisialisasi query untuk mendapatkan data transaksi
+        $produk = Produk::with('rop')->get();
+        $notifications = $this->generateNotifications($produk);
+        $transaksis = TransaksiPenjualan::with('produk');
+    
+        // Pencarian berdasarkan kata kunci
+        if ($request->has('keyword') && $request->keyword != '') {
+            $transaksis = $transaksis->whereHas('produk', function ($query) use ($request) {
+                $query->where('nama_obat', 'like', '%' . $request->keyword . '%');
+            });
+        }
+    
+        // Filter berdasarkan tanggal
+        if ($request->has('start_date') && $request->has('end_date')) {
+            $transaksis = $transaksis->whereBetween('tanggal_transaksi', [$request->start_date, $request->end_date]);
+        }
+    
+        // Ambil data transaksi
+        $transaksis = $transaksis->get();
+    
+        // Mengolah laporan
+        $laporan = [];
+        foreach ($transaksis as $transaksi) {
+            $monthYear = Carbon::parse($transaksi->tanggal_transaksi)->format('F Y'); // Mengambil bulan dan tahun
+    
+            // Jika bulan dan tahun belum ada di laporan, inisialisasi data
+            if (!isset($laporan[$monthYear][$transaksi->produk->nama_obat])) {
+                $stokSisa = $transaksi->produk->stok_sisa; // Ambil stok sisa dari produk
+                $laporan[$monthYear][$transaksi->produk->nama_obat] = [
+                    'jumlah_terjual' => 0,
+                    'harga_satuan' => $transaksi->produk->harga_jual,
+                    'total_penjualan' => 0,
+                    'jumlah_transaksi' => 0,
+                    'total_permintaan' => 0,
+                    'jumlah_permintaan' => 0,
+                    'stok_sisa' => $stokSisa, // Tambahkan stok sisa
+                ];
+            }
+    
+            // Update jumlah terjual dan total penjualan
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_terjual'] += $transaksi->jumlah;
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['total_penjualan'] += ($transaksi->jumlah * $transaksi->produk->harga_jual);
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_transaksi']++; // Hitung jumlah transaksi
+    
+            // Menghitung total permintaan
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['total_permintaan'] += $transaksi->jumlah; // Sesuaikan jika perlu
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_permintaan']++; // Hitung jumlah permintaan
+        }
+    
+        // Menghitung rata-rata penjualan dan rata-rata permintaan per produk
+        foreach ($laporan as $monthYear => $produkData) {
+            foreach ($produkData as $namaObat => $data) {
+                // Menghitung rata-rata penjualan
+                $data['rata_rata_penjualan'] = $data['total_penjualan'] / ($data['jumlah_transaksi'] ?: 1);
+    
+                // Menghitung rata-rata permintaan
+                $data['rata_rata_permintaan'] = $data['total_permintaan'] / ($data['jumlah_permintaan'] ?: 1);
+    
+                $laporan[$monthYear][$namaObat] = $data; // Menyimpan data yang sudah dihitung
+            }
+        }
+    
+        // Mengirim data ke view
+        return view('rop.index', compact('laporan','notifications'));
     }
 
     // Menampilkan form edit ROP
@@ -138,63 +201,76 @@ class RopController extends Controller
 
 
     public function data(Request $request)
-    {
-        // Mengambil parameter pencarian dan lead time jika ada
-        $keyword = $request->input('keyword');
-        $lead_time = (int)$request->input('lead_time', 1); // Default lead time 1 hari jika tidak ada input
-    
-        // Mengambil data transaksi dengan filter jika ada keyword
-        $transaksi = TransaksiPenjualan::when($keyword, function ($query, $keyword) {
-            return $query->where('nama_obat', 'like', '%' . $keyword . '%')
-                         ->orWhere('tanggal_transaksi', 'like', '%' . $keyword . '%');
-        })
-        ->selectRaw('nama_obat, YEAR(tanggal_transaksi) as tahun, SUM(jumlah) as total_jumlah')
-        ->groupBy('nama_obat', 'tahun') // Grup berdasarkan 'nama_obat' dan 'tahun'
-        ->orderBy('tahun', 'asc') // Urutkan berdasarkan tahun
-        ->paginate(10); // Pagination 10 data per halaman
-    
-        // Menghitung rata-rata penjualan bulanan, safety stock, permintaan harian, dan ROP
-        foreach ($transaksi as $item) {
-            // Menghitung rata-rata bulanan berdasarkan total jumlah dan jumlah bulan
-            $item->rata_rata_bulanan = $item->total_jumlah / 12; // Atau sesuaikan sesuai logika bisnis Anda
-    
-            // Mengambil semua data penjualan untuk nama obat tertentu
-            $penjualan = TransaksiPenjualan::where('nama_obat', $item->nama_obat)->get();
-    
-            // Menghitung total dan rata-rata
-            $total = $penjualan->sum('jumlah');
-            $count = $penjualan->count();
-            $mean = $count > 0 ? $total / $count : 0;
-    
-            // Hitung deviasi standar
-            if ($count > 1) { // Pastikan ada cukup data untuk menghitung deviasi standar
-                $variance = $penjualan->reduce(function ($carry, $item) use ($mean) {
-                    return $carry + pow($item->jumlah - $mean, 2);
-                }, 0) / ($count - 1); // Menggunakan n-1 untuk sampel
-                $sigma = sqrt($variance);
-                // Hitung deviasi standar harian
-                $item->sigma_d = $sigma / sqrt(30); // Sesuaikan jika periode bulan berbeda
-            } else {
-                $item->sigma_d = 0; // Jika tidak ada data, kembalikan 0
-            }
-    
-            // Tentukan nilai Z (misalnya, 1.64 untuk tingkat layanan 95%)
-            $Z = 1.64;
-    
-            // Hitung safety stock
-            $item->safety_stock = $Z * $item->sigma_d * $lead_time;
-    
-            // Hitung permintaan harian
-            $item->permintaan_harian = $item->rata_rata_bulanan / 30; // Rata-rata per hari
-    
-            // Hitung ROP
-            $item->rop = ($item->permintaan_harian * $lead_time) + $item->safety_stock;
+{
+    // Mengambil parameter pencarian dan lead time jika ada
+    $keyword = $request->input('keyword');
+    $lead_time = (int)$request->input('lead_time', 2); // Default lead time 2 hari jika tidak ada input
+
+    // Mengambil data transaksi dengan filter jika ada keyword
+    $transaksi = TransaksiPenjualan::when($keyword, function ($query, $keyword) {
+        return $query->where('nama_obat', 'like', '%' . $keyword . '%')
+                     ->orWhere('tanggal_transaksi', 'like', '%' . $keyword . '%');
+    })
+    ->selectRaw('nama_obat, YEAR(tanggal_transaksi) as tahun, SUM(jumlah) as total_jumlah')
+    ->groupBy('nama_obat', 'tahun') // Grup berdasarkan 'nama_obat' dan 'tahun'
+    ->orderBy('tahun', 'asc') // Urutkan berdasarkan tahun
+    ->paginate(10); // Pagination 10 data per halaman
+
+    // Notifikasi untuk admin
+    $notifications = [];
+    $notifiedItems = []; // Array untuk melacak nama_obat yang sudah di-notifikasi
+
+    // Menghitung rata-rata penjualan bulanan, safety stock, permintaan harian, dan ROP
+    foreach ($transaksi as $item) {
+        // Menghitung rata-rata bulanan berdasarkan total jumlah dan jumlah bulan
+        $item->rata_rata_harian = $item->total_jumlah / 365; // Sesuaikan sesuai logika bisnis Anda
+
+        // Mengambil semua data penjualan untuk nama obat tertentu
+        $penjualan = TransaksiPenjualan::where('nama_obat', $item->nama_obat)->get();
+
+        // Menghitung total dan rata-rata
+        $total = $penjualan->sum('jumlah');
+        $count = $penjualan->count();
+        $mean = $count > 0 ? $total / $count : 0;
+
+        // Hitung deviasi standar
+        if ($count > 1) {
+            $variance = $penjualan->reduce(function ($carry, $item) use ($mean) {
+                return $carry + pow($item->jumlah - $mean, 2);
+            }, 0) / ($count - 1); // Menggunakan n-1 untuk sampel
+            $sigma = sqrt($variance);
+            // Hitung deviasi standar harian
+            $item->sigma_d = $sigma / sqrt(30); // Sesuaikan jika periode bulan berbeda
+        } else {
+            $item->sigma_d = 0; // Jika tidak ada data, kembalikan 0
         }
-    
-        // Mengembalikan tampilan dengan data transaksi
-        return view('rop.data', compact('transaksi'));
+
+        // Tentukan nilai Z (misalnya, 1.64 untuk tingkat layanan 95%)
+        $Z = 1.64;
+
+        // Hitung safety stock
+        $item->safety_stock = $Z * $item->sigma_d * $lead_time;
+
+        // Hitung ROP
+        $item->rop = ($item->rata_rata_harian * $lead_time) + $item->safety_stock;
+
+        // Ambil data stok_sisa untuk item ini
+        $stok_sisa = Produk::where('nama_obat', $item->nama_obat)->value('stok_sisa'); // Sesuaikan dengan nama tabel dan kolom yang benar
+
+        // Cek apakah stok_sisa kurang dari atau sama dengan ROP
+        if ($stok_sisa <= $item->rop) {
+            // Pastikan notifikasi untuk nama_obat ini belum ditambahkan
+            if (!in_array($item->nama_obat, $notifiedItems)) {
+                $notifications[] = "Stok untuk {$item->nama_obat} tinggal {$stok_sisa}. ROP adalah {$item->rop}.";
+                $notifiedItems[] = $item->nama_obat; // Tandai nama_obat ini sebagai sudah di-notifikasi
+            }
+        }
     }
-    
+
+    // Mengembalikan tampilan dengan data transaksi dan notifikasi
+    return view('rop.data', compact('transaksi', 'notifications'));
+}
+
    
  
     

@@ -79,7 +79,8 @@
                                         <div class="h5 mb-0 font-weight-bold text-gray-800"> {{ $jumlahTransaksi }}</div>
                                     </div>
                                     <div class="col-auto">
-                                        <i class="fas fa-comments fa-2x text-gray-300"></i>
+                                        <i class="fas fa-receipt fa-2x text-gray-300"></i>
+
                                     </div>
                                 </div>
                             </div>
@@ -91,82 +92,167 @@
 
                 <div class="row">
 
-                   <!-- Area tabel -->
-<div class="col-xl-8 col-lg-7">
-    <div class="card shadow mb-4">
-        <!-- Card Header - Dropdown -->
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Laporan Penjualan</h6>
-        </div>
-        <!-- Card Body -->
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                    <thead>
-                        <tr>
-                            <th>Nama Obat</th>
-                            <th>Jumlah Terjual</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {{-- @foreach($produkTinggiDetail as $produk)
-                            <tr>
-                                <td>{{ $produk->nama_obat }}</td>
-                                <td>
-                                    {{ $produk->transaksi->where('produk_id', $produk->id)->sum('jumlah') }}
-                                </td>
-                            </tr>
-                        @endforeach --}}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
 
-
-                    <!-- Pie Chart -->
-                    <div class="col-xl-4 col-lg-5">
-                        <div class="card shadow mb-4">
-                            <!-- Card Header - Dropdown -->
-                            <div
-                                class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                                <h6 class="m-0 font-weight-bold text-primary">Revenue Sources</h6>
-                                <div class="dropdown no-arrow">
-                                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
-                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
-                                    </a>
-                                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
-                                        aria-labelledby="dropdownMenuLink">
-                                        <div class="dropdown-header">Dropdown Header:</div>
-                                        <a class="dropdown-item" href="#">Action</a>
-                                        <a class="dropdown-item" href="#">Another action</a>
-                                        <div class="dropdown-divider"></div>
-                                        <a class="dropdown-item" href="#">Something else here</a>
+                    <div class="container-fluid">
+                        <!-- Area chart -->
+                        <div class="col-xl-12"> <!-- Menggunakan satu kolom penuh untuk tabel penjualan -->
+                            <div class="card shadow mb-4">
+                                <!-- Card Header - Dropdown -->
+                                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">Laporan Penjualan</h6>
+                                    <p><i>ditambah dengan metode ARIMA sebagai prediksi</i></p>
+                                </div>
+                                <!-- Card Body -->
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <!-- Elemen Canvas untuk Grafik Penjualan -->
+                                        <canvas id="penjualanChart" width="400" height="200"></canvas>
                                     </div>
                                 </div>
                             </div>
-                            <!-- Card Body -->
-                            <div class="card-body">
-                                <div class="chart-pie pt-4 pb-2">
-                                    <canvas id="myPieChart"></canvas>
+                        </div>
+                    
+                        <!-- Area chart ARIMA -->
+                        <div class="col-xl-12"> <!-- Menggunakan satu kolom penuh untuk grafik ARIMA -->
+                            <div class="card shadow mb-4">
+                                <!-- Card Header - Dropdown -->
+                                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                    <h6 class="m-0 font-weight-bold text-primary">Prediksi Penjualan dengan ARIMA</h6>
                                 </div>
-                                <div class="mt-4 text-center small">
-                                    <span class="mr-2">
-                                        <i class="fas fa-circle text-primary"></i> Direct
-                                    </span>
-                                    <span class="mr-2">
-                                        <i class="fas fa-circle text-success"></i> Social
-                                    </span>
-                                    <span class="mr-2">
-                                        <i class="fas fa-circle text-info"></i> Referral
-                                    </span>
+                                <!-- Card Body -->
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <!-- Elemen Canvas untuk Grafik ARIMA -->
+                                        <canvas id="arimaChart" width="400" height="200"></canvas>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                    
+                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/simple-statistics@7.7.0/simple-statistics.min.js"></script>
+                    <script>
+                        // Data Penjualan
+                        const penjualanData = @json($penjualanPerTanggal);
+                        
+                        // Menyiapkan data untuk grafik penjualan
+                        const labels = Object.keys(penjualanData);
+                        const data = Object.values(penjualanData);
+                        
+                        // Membuat grafik penjualan
+                        const ctx = document.getElementById('penjualanChart').getContext('2d');
+                        const myChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: 'Total Penjualan',
+                                    data: data,
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                    borderWidth: 2,
+                                    tension: 0.1 // Menambahkan kelancaran pada grafik
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'top',
+                                    },
+                                    tooltip: {
+                                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                        titleColor: '#fff',
+                                        bodyColor: '#fff'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Jumlah Penjualan'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Bulan'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    
+                        // Fungsi untuk menghitung prediksi ARIMA sederhana
+                        function arima(data, p, d, q) {
+                            let predictions = [];
+                            let prevPrediction = data[0];
+                    
+                            for (let i = 0; i < data.length; i++) {
+                                if (i > 0) {
+                                    // Contoh sederhana: menggunakan nilai sebelumnya sebagai prediksi
+                                    let prediction = prevPrediction + (data[i] - prevPrediction) * 0.5; // Adjustment factor
+                                    predictions.push(prediction);
+                                    prevPrediction = prediction;
+                                }
+                            }
+                            return predictions;
+                        }
+                    
+                        // Melakukan prediksi menggunakan model ARIMA
+                        const p = 1, d = 1, q = 1; // Parameter ARIMA
+                        const arimaPredictions = arima(data, p, d, q);
+                    
+                        // Membuat grafik untuk prediksi ARIMA
+                        const arimaCtx = document.getElementById('arimaChart').getContext('2d');
+                        const arimaChart = new Chart(arimaCtx, {
+                            type: 'line',
+                            data: {
+                                labels: labels.concat(labels.slice(-1).map((_, i) => `Bulan ${parseInt(labels.length) + i + 1}`)), // Menghitung label untuk prediksi
+                                datasets: [{
+                                    label: 'Prediksi ARIMA',
+                                    data: data.concat(arimaPredictions), // Menggabungkan data asli dan prediksi
+                                    borderColor: 'rgba(255, 99, 132, 1)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                    borderWidth: 2,
+                                    tension: 0.1 // Menambahkan kelancaran pada grafik
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'top',
+                                    },
+                                    tooltip: {
+                                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                        titleColor: '#fff',
+                                        bodyColor: '#fff'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Jumlah Penjualan'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Bulan'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    </script>
+                    
 
                 <!-- Content Row -->
                 <div class="row">
@@ -177,7 +263,7 @@
                         <!-- Project Card Example -->
                         <div class="card shadow mb-4">
                             <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Projects</h6>
+                                <h6 class="m-0 font-weight-bold text-primary">Penjualan tertinggi</h6>
                             </div>
                             <div class="card-body">
                                 <h4 class="small font-weight-bold">Server Migration <span

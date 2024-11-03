@@ -8,17 +8,56 @@ use App\Models\TransaksiPenjualan;
 use App\Models\Keranjang;
 use App\Models\Produk;
 use Illuminate\Support\Facades\Log;
-
+use App\Traits\NotifikasiTrait;
 class TransaksiPenjualanController extends Controller
 {
+    use NotifikasiTrait; // Menyertakan Trait Notifikasi
     public function index()
     {
+        $produk = Produk::with('rop')->get(); 
         $transaksis = TransaksiPenjualan::with('produk')->get();
-        
-        return view('transaksi.index', compact('transaksis'));
+        $notifications = $this->generateNotifications($produk);
+        return view('transaksi.index', compact('transaksis', 'notifications'));
     }
+    public function edit($id_transaksi)
+{
+    // Ambil transaksi berdasarkan ID
+    $transaksi = TransaksiPenjualan::findOrFail($id_transaksi);
     
+    // Mengambil produk terkait
+    $produk = Produk::with('rop')->get(); 
+    $notifications = $this->generateNotifications($produk);
 
+    // Parsing tanggal
+    $transaksi->tanggal_transaksi = \Carbon\Carbon::parse($transaksi->tanggal_transaksi);
+
+    // Hitung total harga
+    $total_harga = $transaksi->jumlah * $transaksi->produk->harga_jual;
+
+    // Kirim data ke view
+    return view('transaksi.edit', compact('transaksi', 'notifications', 'total_harga'));
+}
+
+    
+    public function search(Request $request)
+    {
+        $produk = Produk::with('rop')->get(); 
+        $notifications = $this->generateNotifications($produk);
+        $keyword = $request->input('keyword');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+    
+        $transaksis = TransaksiPenjualan::query()
+            ->when($keyword, function ($query, $keyword) {
+                return $query->where('nama_obat', 'like', "%{$keyword}%");
+            })
+            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
+                return $query->whereBetween('tanggal_transaksi', [$startDate, $endDate]);
+            })
+            ->get();
+    
+        return view('transaksi.index', compact('transaksis', 'notifications'));
+    }
 
 
     public function store(Request $request)
@@ -63,33 +102,9 @@ class TransaksiPenjualanController extends Controller
     
     
 
-    public function search(Request $request)
-    {
-        $keyword = $request->input('keyword');
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
+  
     
-        $transaksis = TransaksiPenjualan::query()
-            ->when($keyword, function ($query, $keyword) {
-                return $query->where('nama_obat', 'like', "%{$keyword}%");
-            })
-            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
-                return $query->whereBetween('tanggal_transaksi', [$startDate, $endDate]);
-            })
-            ->get();
-    
-        return view('transaksi.index', compact('transaksis'));
-    }
-    
-    public function edit($id_transaksi)
-    {
-        $transaksi = TransaksiPenjualan::findOrFail($id_transaksi);
-    
-        // Pastikan tanggal_transaksi adalah objek Carbon
-        $transaksi->tanggal_transaksi = \Carbon\Carbon::parse($transaksi->tanggal_transaksi);
-    
-        return view('transaksi.edit', compact('transaksi'));
-    }
+   
     
 
     public function update(Request $request, $id)
@@ -128,70 +143,53 @@ class TransaksiPenjualanController extends Controller
 
     
     public function laporan(Request $request)
-{
-    // Inisialisasi query untuk mendapatkan data transaksi
-    $transaksis = TransaksiPenjualan::with('produk');
-
-    // Pencarian berdasarkan kata kunci
-    if ($request->has('keyword') && $request->keyword != '') {
-        $transaksis = $transaksis->whereHas('produk', function ($query) use ($request) {
-            $query->where('nama_obat', 'like', '%' . $request->keyword . '%');
-        });
-    }
-
-    // Filter berdasarkan tanggal
-    if ($request->has('start_date') && $request->has('end_date')) {
-        $transaksis = $transaksis->whereBetween('tanggal_transaksi', [$request->start_date, $request->end_date]);
-    }
-
-    // Ambil data transaksi
-    $transaksis = $transaksis->get();
-
-    // Mengolah laporan
-    $laporan = [];
-    foreach ($transaksis as $transaksi) {
-        $monthYear = Carbon::parse($transaksi->tanggal_transaksi)->format('F Y'); // Mengambil bulan dan tahun
-
-        // Jika bulan dan tahun belum ada di laporan, inisialisasi data
-        if (!isset($laporan[$monthYear][$transaksi->produk->nama_obat])) {
-            $stokSisa = $transaksi->produk->stok_sisa; // Ambil stok sisa dari produk
-            $laporan[$monthYear][$transaksi->produk->nama_obat] = [
-                'jumlah_terjual' => 0,
-                'harga_satuan' => $transaksi->produk->harga_jual,
-                'total_penjualan' => 0,
-                'jumlah_transaksi' => 0,
-                'total_permintaan' => 0,
-                'jumlah_permintaan' => 0,
-                'stok_sisa' => $stokSisa, // Tambahkan stok sisa
-            ];
+    {
+        // Inisialisasi query untuk mendapatkan data transaksi
+        $produk = Produk::with('rop')->get();
+        $notifications = $this->generateNotifications($produk);
+        $transaksis = TransaksiPenjualan::with('produk');
+    
+        // Pencarian berdasarkan kata kunci
+        if ($request->has('keyword') && $request->keyword != '') {
+            $transaksis = $transaksis->whereHas('produk', function ($query) use ($request) {
+                $query->where('nama_obat', 'like', '%' . $request->keyword . '%');
+            });
         }
-
-        // Update jumlah terjual dan total penjualan
-        $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_terjual'] += $transaksi->jumlah;
-        $laporan[$monthYear][$transaksi->produk->nama_obat]['total_penjualan'] += ($transaksi->jumlah * $transaksi->produk->harga_jual);
-        $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_transaksi']++; // Hitung jumlah transaksi
-
-        // Menghitung total permintaan
-        $laporan[$monthYear][$transaksi->produk->nama_obat]['total_permintaan'] += $transaksi->jumlah; // Sesuaikan jika perlu
-        $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_permintaan']++; // Hitung jumlah permintaan
-    }
-
-    // Menghitung rata-rata penjualan dan rata-rata permintaan per produk
-    foreach ($laporan as $monthYear => $produkData) {
-        foreach ($produkData as $namaObat => $data) {
-            // Menghitung rata-rata penjualan
-            $data['rata_rata_penjualan'] = $data['total_penjualan'] / ($data['jumlah_transaksi'] ?: 1);
-
-            // Menghitung rata-rata permintaan
-            $data['rata_rata_permintaan'] = $data['total_permintaan'] / ($data['jumlah_permintaan'] ?: 1);
-
-            $laporan[$monthYear][$namaObat] = $data; // Menyimpan data yang sudah dihitung
+    
+        // Filter berdasarkan tanggal
+        if ($request->has('start_date') && $request->has('end_date')) {
+            $transaksis = $transaksis->whereBetween('tanggal_transaksi', [$request->start_date, $request->end_date]);
         }
+    
+        // Ambil data transaksi
+        $transaksis = $transaksis->get();
+    
+        // Mengolah laporan
+        $laporan = [];
+        foreach ($transaksis as $transaksi) {
+            $monthYear = Carbon::parse($transaksi->tanggal_transaksi)->format('F Y'); // Mengambil bulan dan tahun
+    
+            // Jika bulan dan tahun belum ada di laporan, inisialisasi data
+            if (!isset($laporan[$monthYear][$transaksi->produk->nama_obat])) {
+                $laporan[$monthYear][$transaksi->produk->nama_obat] = [
+                    'jumlah_terjual' => 0,
+                    'harga_satuan' => $transaksi->produk->harga_jual,
+                    'total_penjualan' => 0,
+                    'jumlah_transaksi' => 0,
+                ];
+            }
+    
+            // Update jumlah terjual dan total penjualan
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_terjual'] += $transaksi->jumlah;
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['total_penjualan'] += ($transaksi->jumlah * $transaksi->produk->harga_jual);
+            $laporan[$monthYear][$transaksi->produk->nama_obat]['jumlah_transaksi']++; // Hitung jumlah transaksi
+        }
+    
+        // Mengirim data ke view
+        return view('transaksi.laporan', compact('laporan', 'notifications'));
     }
+    
 
-    // Mengirim data ke view
-    return view('transaksi.laporan', compact('laporan'));
-}
 
 
 }

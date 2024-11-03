@@ -71,9 +71,6 @@
         </tbody>
     </table>
 
-    <!-- Menampilkan total harga dari seluruh transaksi -->
-    <div class="d-flex justify-content-between">
-        <h5>Total Transaksi: <span class="text-success">{{ number_format($transaksis->sum('total_harga'), 2, ',', '.') }}</span></h5>
-    </div>
+   
 </div>
 @endsection
